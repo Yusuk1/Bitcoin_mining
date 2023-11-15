@@ -1,0 +1,229 @@
+---
+title: "Predicting Bitcoin price" 
+author: "Brian Kim"
+output: html_document
+---
+
+```{=html}
+<style>
+body {
+text-align: justify}
+</style>
+```
+```{r setup, include = FALSE, out.width = "100%", out.height = "100%"}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(ezids)
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(plotly)
+library(ggfortify)  # for plot_acf
+library(tidyverse)
+library(lubridate)
+library(fpp2)
+library(astsa)
+library(cowplot)
+#options(repos = c(CRAN = "https://cloud.r-project.org/"))
+```
+
+```{r}
+# Load data
+df <- read_csv("/Users/brian/Documents/GitHub/Bitcoin_mining_PJT2_Only_Brian/Cleaned_bitcoin_mining_price.csv")
+summary(df)
+```
+
+```{r}
+# Display the structure of your data
+str(df)
+```
+
+# Time series analys of bitcoin price
+
+```{r}
+
+#conver data format
+df$Date <- as.Date(df$Date, format = "%m/%d/%Y")
+
+# bitcoin price
+ggplotly(ggplot(df, aes(Date, Price)) + geom_line(col = 'gold1') + 
+  labs(title = 'Bitcoin Price', x = 'Year') +
+  scale_y_continuous(breaks = c(0, 5000, 10000, 15000, 25000, 35000, 45000, 55000, 65000), 
+                     labels = c('$0', '$5,000', '$10,000', '$15,000', '$25,000','$35,000','$45,000','$55,000','$65,000')))
+
+
+
+```
+
+```{r}
+# Convert date format
+df$Date <- as.Date(df$Date, format = "%m/%d/%Y")
+
+# Create Bitcoin price plot
+bitcoin_plot <- ggplot(df, aes(Date, Price)) + 
+  geom_line(col = 'gold1') + 
+  labs(title = 'Bitcoin Price', x = 'Year') +
+  scale_y_continuous(
+    name = "Price",
+    breaks = c(0, 5000, 10000, 15000, 25000, 35000, 45000, 55000, 65000), 
+    labels = c('$0', '$5,000', '$10,000', '$15,000', '$25,000','$35,000','$45,000','$55,000','$65,000')
+  )
+
+# Create Hashrate plot
+hashrate_plot <- ggplot(df, aes(Date, Hashrate)) + 
+  geom_line(col = 'blue') + 
+  labs(title = 'Hashrate', x = 'Year') +
+  scale_y_continuous(
+    name = "Hashrate",
+    sec.axis = sec_axis(trans = ~ . * 1, 
+                        breaks = c(50000, 100000, 150000),
+                        labels = c('50k', '100k', '150k'))
+  )
+
+combined_plot <- plot_grid(bitcoin_plot, hashrate_plot, align = "v", ncol = 1)
+
+# Display the combined plot
+print(combined_plot)
+
+```
+
+```{r}
+# convert date format
+df$Date <- as.Date(df$Date, format = "%m/%d/%Y")
+
+bit_ts = df %>%
+  filter(Date > as.Date('1/1/2017')) %>%
+  arrange(Date) %>%
+  select(Price) %>%
+  as.matrix() %>%
+  ts()
+
+gglagplot(bit_ts, do.lines = F) +
+  scale_color_continuous(low = "#b37400", high = "#ffc04d", 
+                         breaks = c(1, 1600, 2500, 3500, 4500, 27500, 65000), 
+                         labels = c('2017', '2018', '2019', '2020', '2021', '2022', '2023')) + 
+  scale_y_continuous(breaks = c(0, 15000, 40000, 65000), 
+                     labels = c('$0', '$15,000', '$40,000', '$65,000')) +
+  scale_x_continuous(breaks = c(5000, 40000, 65000), 
+                     labels = c('$5,000', '$40,000', '$65,000')) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 10),
+    axis.text.x = element_text(size = 6),
+    axis.text.y = element_text(size = 6),
+    axis.title.x = element_text(size = 10),
+    axis.title.y = element_text(size = 10)
+  )
+
+```
+```{r}
+cut_bit_df = df %>%
+  filter(Date > as.Date('2017-01-01'))
+
+ggplotly(cut_bit_df[-1,] %>%
+  mutate(Price = diff(cut_bit_df$Price)) %>%
+  ggplot(aes(Date, Price)) + geom_line(col = '#ffa500') + 
+  labs(x = '', title = 'Bitcoin Differenced By One', y = 'Difference'))
+
+
+```
+
+
+```{r}
+# Assuming you have a data frame 'df' with columns: Date, Price, Volume, and Hashrate
+
+# Load required libraries
+library(tidyverse)
+library(caret)
+library(randomForest)
+
+# Convert date format
+df$Date <- as.Date(df$Date, format = "%m/%d/%Y")
+
+# Feature engineering
+df$Year <- as.numeric(format(df$Date, "%Y"))
+df$Month <- as.numeric(format(df$Date, "%m"))
+df$Day <- as.numeric(format(df$Date, "%d"))
+
+# Split data into training and testing sets
+set.seed(123)
+train_index <- createDataPartition(df$Price, p = 0.8, list = FALSE)
+train_data <- df[train_index, ]
+test_data <- df[-train_index, ]
+
+# Define predictor variables
+predictors <- c("Year", "Month", "Day", "Hashrate")
+
+# Train a predictive model (linear regression for simplicity)
+model <- lm(Price ~ ., data = train_data[, c(predictors, "Price")])
+
+# Make predictions on the test set
+predictions <- predict(model, newdata = test_data)
+
+# Evaluate the model
+rmse <- sqrt(mean((predictions - test_data$Price)^2))
+cat("Root Mean Squared Error(RMSE) for Price:", rmse, "\n")
+
+# Visualize predictions vs. actual prices
+plot(test_data$Date, test_data$Price, col = "blue", type = "l", lty = 1, xlab = "Date", ylab = "Price")
+lines(test_data$Date, predictions, col = "red", type = "l", lty = 2)
+legend("topright", legend = c("Actual", "Predicted"), col = c("blue", "red"), lty = 1:2)
+
+# Train a model for predicting volume (using Random Forest for simplicity)
+volume_model <- randomForest(Volume ~ ., data = train_data[, c(predictors, "Volume")])
+
+# Make predictions on the test set for volume
+volume_predictions <- predict(volume_model, newdata = test_data)
+
+# Evaluate the volume model
+rmse_volume <- sqrt(mean((volume_predictions - test_data$Volume)^2))
+cat("Root Mean Squared Error(RMSE) for Volume:", rmse_volume, "\n")
+
+# Visualize predictions vs. actual volume
+plot(test_data$Date, test_data$Volume, col = "blue", type = "l", lty = 1, xlab = "Date", ylab = "Volume")
+lines(test_data$Date, volume_predictions, col = "red", type = "l", lty = 2)
+legend("topright", legend = c("Actual", "Predicted"), col = c("blue", "red"), lty = 1:2)
+
+```
+
+```{r}
+# Load necessary libraries
+library(tidyverse)
+library(caret)
+library(randomForest)
+
+# Assume the dataframe 'df' contains columns 'Date', 'Price', 'Volume', and 'Hashrate'
+# Convert date format
+df$Date <- as.Date(df$Date, format = "%m/%d/%Y")
+
+# Feature engineering
+df$Year <- as.numeric(format(df$Date, "%Y"))
+df$Month <- as.numeric(format(df$Date, "%m"))
+df$Day <- as.numeric(format(df$Date, "%d"))
+
+# Split data into training and test sets
+set.seed(123)
+train_index <- createDataPartition(df$Price, p = 0.8, list = FALSE)
+train_data <- df[train_index, ]
+test_data <- df[-train_index, ]
+
+# Define predictors
+predictors <- c("Year", "Month", "Day", "Hashrate")
+
+# Train Price prediction model (using Random Forest)
+price_model <- randomForest(Price ~ ., data = train_data[, c(predictors, "Price")])
+
+# Train Volume prediction model (using Random Forest)
+volume_model <- randomForest(Volume ~ ., data = train_data[, c(predictors, "Volume")])
+
+# Make predictions on the test set
+price_predictions <- predict(price_model, newdata = test_data)
+volume_predictions <- predict(volume_model, newdata = test_data)
+
+# Evaluate models
+price_rmse <- sqrt(mean((price_predictions - test_data$Price)^2))
+volume_rmse <- sqrt(mean((volume_predictions - test_data$Volume)^2))
+
+cat("Price RMSE:", price_rmse, "\n")
+cat("Volume RMSE:", volume_rmse, "\n")
+
+```
