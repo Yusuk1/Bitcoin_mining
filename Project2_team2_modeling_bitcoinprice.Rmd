@@ -1,0 +1,96 @@
+---
+title: "Predicting Bitcoin price" 
+author: "Brian Kim"
+output: html_document
+---
+
+```{=html}
+<style>
+body {
+text-align: justify}
+</style>
+```
+```{r setup, include = FALSE, out.width = "100%", out.height = "100%"}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(ezids)
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(plotly)
+library(ggfortify)  # for plot_acf
+library(tidyverse)
+library(lubridate)
+library(fpp2)
+library(astsa)
+library(plotly)
+#options(repos = c(CRAN = "https://cloud.r-project.org/"))
+```
+
+```{r}
+# Load data
+df <- read_csv("/Users/brian/Documents/GitHub/Bitcoin_mining/PJT2/Cleaned_bitcoin_mining_price.csv")
+summary(df)
+```
+
+```{r}
+# Display the structure of your data
+str(df)
+```
+
+# Time series analys of bitcoin price
+
+```{r}
+# 
+# ggplotly(ggplot(df, aes(Date, Price)) + geom_line(col = '#ffa500') + 
+#  labs(title = 'Bitcoin Price', x = '') +
+#  scale_y_continuous(breaks = c(0, 5000, 10000, 15000, 25000, 35000, 45000, 55000, 65000), 
+#                     labels = c('$0', '$5,000', '$10,000', '$15,000', '$25,000','$35,000','$45,000','$55,000','$65,000')))
+
+
+# Define the ggplot with dual y-axes
+p <- ggplot(df, aes(Date)) +
+  geom_line(aes(y = Price, col = 'Price'), linetype = 'solid', size = 1) +
+  geom_line(aes(y = Hashrate, col = 'Hash_rate_MH/s'), linetype = 'dashed', size = 1) +
+  labs(title = 'Bitcoin Price and Hashrate',
+       x = '',
+       y = 'Price',
+       col = '') +
+  scale_y_continuous(
+    name = 'Price',
+    breaks = c(0, 5000, 10000, 15000, 25000, 35000, 45000, 55000, 65000),
+    labels = c('$0', '$5,000', '$10,000', '$15,000', '$25,000', '$35,000', '$45,000', '$55,000', '$65,000')
+  ) +
+  scale_color_manual(values = c('#ffa500', 'blue')) +
+  theme_minimal()
+
+# Convert to plotly
+p <- ggplotly(p)
+
+# Show the plot
+p
+
+```
+
+```{r}
+# convert date format
+df$Date <- as.Date(df$Date, format = "%m/%d/%Y")
+
+bit_ts = df %>%
+  filter(Date > as.Date('1/1/2017')) %>%
+  arrange(Date) %>%
+  select(Price) %>%
+  as.matrix() %>%
+  ts()
+
+gglagplot(bit_ts, do.lines = F) +
+         scale_color_continuous(low = "#b37400", high = "#ffc04d", breaks = c(1, 1600, 2500, 3500, 4500, 27500, 65000), labels = c('2017', '2018', '2019', '2020', '2021', '2022', '2023')) + 
+  scale_y_continuous(breaks = c(0, 15000, 40000, 65000), 
+                     labels = c('$0', '$15,000', '$40,000', '$65,000')) +
+  scale_x_continuous(breaks = c(5000, 40000, 65000), 
+                     labels = c('$5,000', '$40,000', '$65,000'))
+
+```
+
+
+
+
